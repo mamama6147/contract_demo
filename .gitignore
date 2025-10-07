@@ -1,0 +1,102 @@
+# Solidity & Smart Contract Development
+
+# Remix IDE
+.remix.config
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+artifacts/
+cache/
+out/
+build/
+
+# Hardhat
+.hardhat/
+coverage/
+coverage.json
+typechain/
+typechain-types/
+
+# Truffle
+.build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.test
+*.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+.coverage/
+.nyc_output/
+test-results/
+
+# IDE - VSCode
+.vscode/
+*.code-workspace
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Compilation files
+*.abi
+*.bin
+*.deployed
+
+# Local deployment records
+deployments/localhost/
+deployments/hardhat/
+
+# OpenZeppelin
+.openzeppelin/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Documentation generation
+docs/coverage/
+
+# Gas reports
+gas-report.txt
+.gas-snapshot
+
+# Slither output
+slither-report.json
+
+# Echidna
+echidna-corpora/
+
+# Contract verification
+.verify/
