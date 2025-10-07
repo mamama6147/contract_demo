@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;  // 固定バージョン
+pragma solidity >=0.8.20 <0.9.0;
 
 import "./ERC721Psi.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
