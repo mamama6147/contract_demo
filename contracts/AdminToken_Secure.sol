@@ -6,6 +6,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+/**
+ * @title AdminTokenNFT (Secure Version)
+ * @notice 本番環境向けの管理者権限NFTコントラクト
+ * @dev ERC721Psiを使用してガス効率を最適化
+ * 
+ * 🔐 セキュリティ機能:
+ * - ReentrancyGuard: リエントランシー攻撃対策
+ * - イベントログ: 透明性の高いトランザクション記録
+ * - 厳格な入力検証: ゼロアドレス・空文字列チェック
+ * - 緊急機能: withdraw による資金引き出し
+ * 
+ * 💡 tokenId管理:
+ * ERC721Psiは内部カウンター(_currentIndex)でtokenIdを自動管理
+ * burnしてもカウンターは減らないため、tokenId衝突は発生しません
+ */
 contract AdminTokenNFT is ERC721Psi, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
@@ -29,7 +44,11 @@ contract AdminTokenNFT is ERC721Psi, Ownable, ReentrancyGuard {
         return baseURI;
     }
 
-    // public
+    /**
+     * @notice 管理者権限NFTをミント
+     * @param _mintAmount ミントする数量
+     * @dev ERC721Psiの_currentIndexカウンターで自動的にtokenIdが割り当てられる
+     */
     function mint(uint256 _mintAmount) external onlyOwner nonReentrant {
         uint256 supply = totalSupply();
         require(_mintAmount > 0, "mint amount must be positive");
