@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20 <0.9.0;
 
-import "./ERC721Psi.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 interface IERC721AdminContract {
     function balanceOf(address addr) external view returns (uint256 holds);
@@ -13,27 +14,30 @@ interface IERC721AdminContract {
 /**
  * @title notALockerNFT (Secure Version)
  * @notice 本番環境向けのAdminToken連携NFTコントラクト
- * @dev ERC721Psiを使用してガス効率を最適化
+ * @dev ERC721Enumerableベース + セキュリティ強化
  * 
  * 🔐 セキュリティ機能:
  * - ReentrancyGuard: リエントランシー攻撃対策
+ * - Countersライブラリ: tokenId衝突防止
  * - Modifierによる権限チェック: hasAdminToken, whenNotPaused
  * - イベントログ: 全ての重要な操作を記録
  * - 厳格な入力検証: ゼロアドレス・無効な値のチェック
  * - Emergency機能: emergencyPause, withdraw
  * 
  * 💡 tokenId管理:
- * ERC721Psiは内部カウンター(_currentIndex)でtokenIdを自動管理
- * ✅ burnしてもカウンターは減らないため、tokenId衝突は発生しません
- * ✅ 通常版(NotALocker.sol)はCountersライブラリを使用して同じ効果を実現
+ * CountersライブラリでユニークなtokenIdを保証
+ * ✅ burnしてもカウンターは進むため、tokenId衝突は発生しません
  * 
  * 🆚 通常版との違い:
- * - 通常版: ERC721Enumerable + Countersライブラリ
- * - Secure版: ERC721Psi（ガス最適化、内部カウンター）
+ * - 通常版: 基本的なセキュリティ
+ * - Secure版: ReentrancyGuard + 詳細Event + Modifier + 厳格な検証
  * 両方ともburn後のtokenId衝突問題を解決済み
  */
-contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
+contract notALockerNFT is ERC721Enumerable, Ownable, ReentrancyGuard {
     using Strings for uint256;
+    using Counters for Counters.Counter;
+
+    Counters.Counter private _tokenIdCounter;
 
     string private baseURI;
     string public baseExtension = ".json";
@@ -48,16 +52,18 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
     event AdminContractUpdated(address indexed oldContract, address indexed newContract);
     event Paused(bool isPaused);
     event Revealed();
-    event BaseURIUpdated(string newBaseURI);
+    event BaseURIUpdated(string indexed newBaseURI);
+    event BaseExtensionUpdated(string indexed newExtension);
     event MaxMintAmountUpdated(uint256 newAmount);
-    event TokensMinted(address indexed to, uint256 amount);
-    event TokenBurned(uint256 indexed tokenId);
+    event TokensMinted(address indexed to, uint256 startTokenId, uint256 amount);
+    event TokenBurned(uint256 indexed tokenId, address indexed burner);
     event TokenTransferred(address indexed from, address indexed to, uint256 indexed tokenId);
+    event FundsWithdrawn(address indexed to, uint256 amount);
 
     constructor(
         string memory _initBaseURI,
         string memory _initNotRevealedUri
-    ) ERC721Psi("notALockerNFT", "NOTALOCKERNFT") Ownable(msg.sender) {
+    ) ERC721("notALockerNFT", "NOTALOCKERNFT") Ownable(msg.sender) {
         require(bytes(_initBaseURI).length > 0, "Base URI cannot be empty");
         require(bytes(_initNotRevealedUri).length > 0, "Not revealed URI cannot be empty");
         
@@ -78,7 +84,14 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
     }
 
     modifier validTokenId(uint256 tokenId) {
-        require(_exists(tokenId), "Token does not exist");
+        _requireOwned(tokenId);
+        _;
+    }
+
+    modifier validMintAmount(uint256 _mintAmount) {
+        require(_mintAmount > 0, "mint amount must be positive");
+        require(_mintAmount <= maxMintAmount, "exceeds max mint amount");
+        require(totalSupply() + _mintAmount <= maxSupply, "exceeds max supply");
         _;
     }
 
@@ -87,33 +100,36 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         return baseURI;
     }
 
-    // Override _startTokenId to start from 1 instead of 0
-    function _startTokenId() internal pure override returns (uint256) {
-        return 1;
-    }
-
     /**
      * @notice NFTをミント（AdminToken保有者のみ）
      * @param _mintAmount ミントする数量
-     * @dev ERC721Psiの_currentIndexカウンターで自動的にtokenIdが割り当てられる
-     * burnしてもカウンターは減らないため、tokenId衝突は発生しない
+     * @dev Countersで安全なtokenId管理、burnしても衝突しない
      */
     function mint(uint256 _mintAmount) 
         external 
         hasAdminToken 
         whenNotPaused 
         nonReentrant 
+        validMintAmount(_mintAmount)
     {
-        uint256 supply = totalSupply();
-        require(_mintAmount > 0, "mint amount must be positive");
-        require(_mintAmount <= maxMintAmount, "exceeds max mint amount");
-        require(supply + _mintAmount <= maxSupply, "exceeds max supply");
+        uint256 startTokenId = _tokenIdCounter.current() + 1;
 
-        _safeMint(msg.sender, _mintAmount);
-        emit TokensMinted(msg.sender, _mintAmount);
+        for (uint256 i = 0; i < _mintAmount; i++) {
+            _tokenIdCounter.increment();
+            _safeMint(msg.sender, _tokenIdCounter.current());
+        }
+
+        emit TokensMinted(msg.sender, startTokenId, _mintAmount);
     }
 
-    // 修正版 walletOfOwner - セキュア&ガス効率化
+    /**
+     * @notice 現在のtokenIdカウンターを取得
+     * @return 次にミントされるtokenId
+     */
+    function getCurrentTokenId() external view returns (uint256) {
+        return _tokenIdCounter.current();
+    }
+
     function walletOfOwner(address _owner)
         external
         view
@@ -125,26 +141,10 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         }
 
         uint256[] memory tokenIds = new uint256[](ownerTokenCount);
-        uint256 currentIndex = 0;
-        uint256 totalTokens = totalSupply();
-        
-        // ガス制限対策：最大500トークンまでスキャン
-        uint256 maxScan = totalTokens > 500 ? 500 : totalTokens;
-        
-        for (uint256 i = _startTokenId(); i <= maxScan && currentIndex < ownerTokenCount; i++) {
-            if (_exists(i) && ownerOf(i) == _owner) {
-                tokenIds[currentIndex] = i;
-                currentIndex++;
-            }
+        for (uint256 i = 0; i < ownerTokenCount; i++) {
+            tokenIds[i] = tokenOfOwnerByIndex(_owner, i);
         }
-        
-        // 実際に見つかった分だけの配列を返す
-        uint256[] memory result = new uint256[](currentIndex);
-        for (uint256 i = 0; i < currentIndex; i++) {
-            result[i] = tokenIds[i];
-        }
-        
-        return result;
+        return tokenIds;
     }
 
     function tokenURI(uint256 tokenId)
@@ -193,6 +193,7 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
     function setBaseExtension(string memory _newBaseExtension) external onlyOwner {
         require(bytes(_newBaseExtension).length > 0, "Extension cannot be empty");
         baseExtension = _newBaseExtension;
+        emit BaseExtensionUpdated(_newBaseExtension);
     }
 
     function setAdminContract(address _adminContract) external onlyOwner {
@@ -215,7 +216,21 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         emit Paused(_state);
     }
 
-    // 修正版 transferToken - 安全性大幅向上
+    /**
+     * @notice 緊急一時停止
+     * @dev オーナーのみ実行可能
+     */
+    function emergencyPause() external onlyOwner {
+        paused = true;
+        emit Paused(true);
+    }
+
+    /**
+     * @notice NFTを転送（所有者またはAdminToken保有者）
+     * @param from 送信元アドレス
+     * @param to 送信先アドレス
+     * @param tokenId 転送するtokenId
+     */
     function transferToken(address from, address to, uint256 tokenId) 
         external 
         validTokenId(tokenId)
@@ -238,7 +253,7 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
     /**
      * @notice NFTをburn（AdminToken保有者かつ所有者のみ）
      * @param tokenId 焼却するtokenId
-     * @dev ERC721Psiの_currentIndexは減らないため、burn後も新規mintで衝突しない
+     * @dev Countersは減らないため、burn後も新規mintで衝突しない
      */
     function burn(uint256 tokenId) 
         external 
@@ -249,21 +264,27 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         require(ownerOf(tokenId) == msg.sender, "caller is not owner");
         
         _burn(tokenId);
-        emit TokenBurned(tokenId);
+        emit TokenBurned(tokenId, msg.sender);
     }
 
-    // Emergency functions
-    function emergencyPause() external onlyOwner {
-        paused = true;
-        emit Paused(true);
-    }
-
-    // ETH withdrawal function
-    function withdraw() external onlyOwner {
+    /**
+     * @notice 緊急時のETH引き出し
+     * @dev オーナーのみ実行可能
+     */
+    function withdraw() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
         require(balance > 0, "No funds to withdraw");
-        payable(owner()).transfer(balance);
+        
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Transfer failed");
+        
+        emit FundsWithdrawn(owner(), balance);
     }
+
+    /**
+     * @notice コントラクトがETHを受け取れるようにする
+     */
+    receive() external payable {}
 
     // View functions for frontend integration
     function canMint(address user, uint256 amount) external view returns (bool) {
@@ -279,6 +300,7 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         uint256 _totalSupply,
         uint256 _maxSupply,
         uint256 _maxMintAmount,
+        uint256 _currentTokenId,
         bool _paused,
         bool _revealed,
         address _adminContract
@@ -287,6 +309,7 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
             totalSupply(),
             maxSupply,
             maxMintAmount,
+            _tokenIdCounter.current(),
             paused,
             revealed,
             address(adminContract)
