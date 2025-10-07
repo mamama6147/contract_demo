@@ -144,7 +144,12 @@ contract AdminTokenNFT is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     /**
      * @notice コントラクト情報を一括取得
-     * @return フロントエンド連携用の情報
+     * @return _name コントラクト名
+     * @return _symbol トークンシンボル
+     * @return _totalSupply 現在の総供給量
+     * @return _maxSupply 最大供給量
+     * @return _currentTokenId 現在のtokenIdカウンター
+     * @return _owner コントラクトオーナーアドレス
      */
     function getContractInfo() external view returns (
         string memory _name,
