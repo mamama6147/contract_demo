@@ -9,6 +9,64 @@
 - **AdminToken**: 管理者権限を付与するNFTコントラクト
 - **NotALocker**: AdminToken保有者が管理できる一般NFTコントラクト
 
+## 🎯 バージョンについて
+
+このリポジトリには**2つのバージョン**のコントラクトが含まれています：
+
+### 📘 通常版（学習・テスト用）
+**ファイル:**
+- `contracts/AdminToken.sol`
+- `contracts/NotALocker.sol`
+
+**特徴:**
+- ✅ ERC721Enumerable使用
+- ✅ シンプルで理解しやすい実装
+- ✅ CountersライブラリでtokenId管理（burn対応）
+- ✅ **学習・テスト環境に最適**
+- ✅ コードの可読性重視
+
+**推奨用途:**
+- Remix IDEでの学習
+- テストネットでの実験
+- スマートコントラクトの学習教材
+
+### 🔐 Secure版（本番環境向け）
+**ファイル:**
+- `contracts/AdminToken_Secure.sol`
+- `contracts/NotALocker_Secure.sol`
+
+**特徴:**
+- ✅ ERC721Psi使用（ガス最適化）
+- ✅ ReentrancyGuard実装
+- ✅ 詳細なEvent logging
+- ✅ 厳格な入力検証
+- ✅ Emergency機能（緊急停止・資金引き出し）
+- ✅ Modifierによるコード整理
+- ✅ フロントエンド連携用View関数
+
+**推奨用途:**
+- メインネットデプロイ
+- 本番環境での運用
+- 大量mintが必要な場合
+
+**⚠️ 注意:**
+- ERC721Psiは独自のtokenId管理を行うため、通常版とは実装が異なります
+- より高度なSolidityの知識が必要です
+
+## 🆚 バージョン比較表
+
+| 項目 | 通常版 | Secure版 |
+|------|--------|----------|
+| **ERC721実装** | ERC721Enumerable | ERC721Psi |
+| **ガス効率** | 標準 | 最適化済み |
+| **セキュリティ** | 基本的 | 強化版 |
+| **複雑度** | シンプル | 高度 |
+| **学習向け** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **本番向け** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **tokenId管理** | Counters | ERC721Psi内蔵 |
+| **ReentrancyGuard** | ❌ | ✅ |
+| **Emergency機能** | ❌ | ✅ |
+
 ## 🚀 主な機能
 
 ### AdminToken (AdminTokenNFT)
@@ -24,20 +82,36 @@
 - ✅ Admin権限での他人のNFT転送
 - ✅ 条件付きBurn機能
 - ✅ WalletOfOwner（所有NFT一覧取得）
+- ✅ **tokenId衝突問題を修正済み**（通常版）
 
 ## 📁 ファイル構造
 
 ```
 contract_demo/
 ├── contracts/
-│   ├── AdminToken.sol      # 管理者権限NFT
-│   └── NotALocker.sol      # 権限制御NFT
+│   ├── AdminToken.sol              # 通常版: 管理者権限NFT
+│   ├── NotALocker.sol              # 通常版: 権限制御NFT（Counters使用）
+│   ├── AdminToken_Secure.sol       # Secure版: 本番環境向け
+│   └── NotALocker_Secure.sol       # Secure版: 本番環境向け
 ├── docs/
-│   └── TESTING_GUIDE.md    # 完全テスト手順書
-├── artifacts/              # コンパイル成果物
-├── scripts/                # デプロイスクリプト
-└── README.md              # このファイル
+│   └── TESTING_GUIDE.md            # 完全テスト手順書
+├── artifacts/                      # コンパイル成果物
+├── scripts/                        # デプロイスクリプト
+└── README.md                       # このファイル
 ```
+
+## 🔧 最近の修正
+
+### v1.1.0 - tokenId管理の改善（通常版）
+**問題:** burnでtokenIdを削除すると、totalSupply()が減少し、次のmint時にtokenId衝突が発生
+
+**解決策:** 
+- Countersライブラリを使用した専用カウンター実装
+- burnしてもカウンターは進むため衝突なし
+- より安全で予測可能なtokenId管理
+
+**修正ファイル:**
+- `contracts/NotALocker.sol`
 
 ## 🧪 テスト
 
@@ -50,6 +124,7 @@ contract_demo/
 - ✅ 権限制御テスト（AdminToken連携）
 - ✅ 高度機能テスト（Transfer、Burn、Pause）
 - ✅ セキュリティテスト（権限なしアクセス拒否）
+- ✅ tokenId衝突テスト（burn後のmint）
 
 ## 🛠️ 開発環境
 
@@ -57,7 +132,7 @@ contract_demo/
 - **IDE**: Remix IDE (https://remix.ethereum.org)
 - **Solidity**: ^0.8.20
 - **OpenZeppelin**: ^4.0.0
-- **テスト環境**: Remix VM
+- **テスト環境**: Remix VM または Sepolia Testnet
 
 ### コンパイル設定
 - Optimization: 有効
@@ -66,13 +141,26 @@ contract_demo/
 
 ## 🚀 デプロイ手順
 
+### どちらのバージョンを使うべきか？
+
+**🎓 学習・テストの場合:**
+→ **通常版（AdminToken.sol / NotALocker.sol）**を使用
+
+**🏭 本番環境の場合:**
+→ **Secure版（AdminToken_Secure.sol / NotALocker_Secure.sol）**を使用
+
 ### 1. AdminToken デプロイ
 ```solidity
+// 通常版
+constructor("https://api.example.com/admin/")
+
+// Secure版
 constructor("https://api.example.com/admin/")
 ```
 
 ### 2. NotALocker デプロイ
 ```solidity
+// 通常版・Secure版共通
 constructor(
     "https://api.example.com/nft/",
     "https://api.example.com/hidden.json"
@@ -94,8 +182,9 @@ notALocker.setAdminContract(adminTokenAddress);
 ### 監査項目
 - ✅ onlyOwner修飾子の適切な使用
 - ✅ AdminToken保有確認の実装
-- ✅ リエントランシー攻撃対策
+- ✅ リエントランシー攻撃対策（Secure版）
 - ✅ オーバーフロー/アンダーフロー対策
+- ✅ tokenId衝突対策（通常版: Counters使用）
 
 ## 📊 使用例
 
@@ -133,8 +222,17 @@ MIT License
 
 Created by mamama6147
 
+## 📚 参考リンク
+
+- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
+- [Remix IDE](https://remix.ethereum.org)
+- [Solidity Documentation](https://docs.soliditylang.org/)
+- [ERC721 Standard](https://eips.ethereum.org/EIPS/eip-721)
+
 ---
 
 **🎉 Happy Coding!** 
 
 質問やサポートが必要でしたら、お気軽にIssueを作成してください。
+
+**💡 ヒント:** 初めての方は通常版から始めることをお勧めします！
