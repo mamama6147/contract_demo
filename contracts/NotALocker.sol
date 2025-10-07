@@ -3,7 +3,8 @@ pragma solidity >=0.8.20 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol"; 
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 interface balanceOfInterface {
     function balanceOf(address addr) external view returns (uint256 holds);
@@ -11,7 +12,10 @@ interface balanceOfInterface {
 
 contract notALockerNFT is ERC721Enumerable, Ownable {
   using Strings for uint256;
+  using Counters for Counters.Counter;
 
+  Counters.Counter private _tokenIdCounter;
+  
   string baseURI;
   string public baseExtension = ".json";
   uint256 public maxSupply = 10000;
@@ -47,8 +51,9 @@ contract notALockerNFT is ERC721Enumerable, Ownable {
     require(_mintAmount <= maxMintAmount, "exceeds max mint amount");
     require(supply + _mintAmount <= maxSupply, "exceeds max supply");
 
-    for (uint256 i = 1; i <= _mintAmount; i++) {
-      _safeMint(msg.sender, supply + i);
+    for (uint256 i = 0; i < _mintAmount; i++) {
+      _tokenIdCounter.increment();
+      _safeMint(msg.sender, _tokenIdCounter.current());
     }
   }
 
@@ -82,6 +87,11 @@ contract notALockerNFT is ERC721Enumerable, Ownable {
     return bytes(currentBaseURI).length > 0
         ? string(abi.encodePacked(currentBaseURI, tokenId.toString(), baseExtension))
         : "";
+  }
+
+  // View function to get current token ID counter
+  function getCurrentTokenId() public view returns (uint256) {
+    return _tokenIdCounter.current();
   }
 
   //only owner
