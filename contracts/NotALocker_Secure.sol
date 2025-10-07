@@ -130,6 +130,11 @@ contract notALockerNFT is ERC721Enumerable, Ownable, ReentrancyGuard {
         return _tokenIdCounter.current();
     }
 
+    /**
+     * @notice 特定のアドレスが所有する全NFTのtokenIdを取得
+     * @param _owner 所有者のアドレス
+     * @return tokenIdの配列
+     */
     function walletOfOwner(address _owner)
         external
         view
@@ -286,7 +291,12 @@ contract notALockerNFT is ERC721Enumerable, Ownable, ReentrancyGuard {
      */
     receive() external payable {}
 
-    // View functions for frontend integration
+    /**
+     * @notice ユーザーがミント可能かチェック
+     * @param user チェックするユーザーアドレス
+     * @param amount ミント数量
+     * @return ミント可能かどうか
+     */
     function canMint(address user, uint256 amount) external view returns (bool) {
         if (paused) return false;
         if (address(adminContract) == address(0)) return false;
@@ -296,6 +306,16 @@ contract notALockerNFT is ERC721Enumerable, Ownable, ReentrancyGuard {
         return true;
     }
 
+    /**
+     * @notice コントラクト情報を一括取得
+     * @return _totalSupply 現在の総供給量
+     * @return _maxSupply 最大供給量
+     * @return _maxMintAmount 1回の最大ミント数
+     * @return _currentTokenId 現在のtokenIdカウンター
+     * @return _paused 一時停止状態
+     * @return _revealed 公開状態
+     * @return _adminContract AdminContractアドレス
+     */
     function getContractInfo() external view returns (
         uint256 _totalSupply,
         uint256 _maxSupply,
