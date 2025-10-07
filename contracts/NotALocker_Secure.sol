@@ -10,6 +10,28 @@ interface IERC721AdminContract {
     function balanceOf(address addr) external view returns (uint256 holds);
 }
 
+/**
+ * @title notALockerNFT (Secure Version)
+ * @notice 本番環境向けのAdminToken連携NFTコントラクト
+ * @dev ERC721Psiを使用してガス効率を最適化
+ * 
+ * 🔐 セキュリティ機能:
+ * - ReentrancyGuard: リエントランシー攻撃対策
+ * - Modifierによる権限チェック: hasAdminToken, whenNotPaused
+ * - イベントログ: 全ての重要な操作を記録
+ * - 厳格な入力検証: ゼロアドレス・無効な値のチェック
+ * - Emergency機能: emergencyPause, withdraw
+ * 
+ * 💡 tokenId管理:
+ * ERC721Psiは内部カウンター(_currentIndex)でtokenIdを自動管理
+ * ✅ burnしてもカウンターは減らないため、tokenId衝突は発生しません
+ * ✅ 通常版(NotALocker.sol)はCountersライブラリを使用して同じ効果を実現
+ * 
+ * 🆚 通常版との違い:
+ * - 通常版: ERC721Enumerable + Countersライブラリ
+ * - Secure版: ERC721Psi（ガス最適化、内部カウンター）
+ * 両方ともburn後のtokenId衝突問題を解決済み
+ */
 contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
@@ -70,7 +92,12 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         return 1;
     }
 
-    // public
+    /**
+     * @notice NFTをミント（AdminToken保有者のみ）
+     * @param _mintAmount ミントする数量
+     * @dev ERC721Psiの_currentIndexカウンターで自動的にtokenIdが割り当てられる
+     * burnしてもカウンターは減らないため、tokenId衝突は発生しない
+     */
     function mint(uint256 _mintAmount) 
         external 
         hasAdminToken 
@@ -208,7 +235,11 @@ contract notALockerNFT is ERC721Psi, Ownable, ReentrancyGuard {
         emit TokenTransferred(from, to, tokenId);
     }
 
-    // 修正版 burn - 安全性向上
+    /**
+     * @notice NFTをburn（AdminToken保有者かつ所有者のみ）
+     * @param tokenId 焼却するtokenId
+     * @dev ERC721Psiの_currentIndexは減らないため、burn後も新規mintで衝突しない
+     */
     function burn(uint256 tokenId) 
         external 
         hasAdminToken 
